@@ -35,6 +35,9 @@ import me.him188.ani.app.data.network.BangumiBangumiCommentServiceImpl
 import me.him188.ani.app.data.network.BangumiCommentService
 import me.him188.ani.app.data.network.BangumiRelatedPeopleService
 import me.him188.ani.app.data.network.DefaultWatchTogetherApiService
+import me.him188.ani.app.data.network.DefaultWatchTogetherChatApi
+import me.him188.ani.app.data.network.WatchTogetherApiService
+import me.him188.ani.app.data.network.WatchTogetherChatApi
 import me.him188.ani.app.data.network.EpisodeService
 import me.him188.ani.app.data.network.EpisodeServiceImpl
 import me.him188.ani.app.data.network.RemoteSubjectService
@@ -234,9 +237,18 @@ private fun KoinApplication.otherModules(
     }
     single<AniApiProvider> { AniApiProvider(get<HttpClientProvider>().get(useAniToken = true)) }
     single<WatchTogetherApiService> {
+        val settings = get<SettingsRepository>().watchTogetherSettings
         DefaultWatchTogetherApiService(
             provider = get(),
             eventsClient = get<HttpClientProvider>().get(useAniToken = true, useSse = true),
+            serverBaseUrl = settings.flow.map { it.serverBaseUrl },
+        )
+    }
+    single<WatchTogetherChatApi> {
+        val settings = get<SettingsRepository>().watchTogetherSettings
+        DefaultWatchTogetherChatApi(
+            client = get<HttpClientProvider>().get(useAniToken = true),
+            serverBaseUrl = settings.flow.map { it.serverBaseUrl },
         )
     }
     single<LocalPlaybackBridge> { LocalPlaybackBridge() }

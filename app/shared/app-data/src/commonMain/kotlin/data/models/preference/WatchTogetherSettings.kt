@@ -20,6 +20,13 @@ data class WatchTogetherSettings(
     val followHost: Boolean = true,
     val lastRoomName: String = "",
     val rememberedSession: RememberedRoomSession? = null,
+    /**
+     * 自托管「一起看」服务端地址。
+     *
+     * 支持域名或 ip:端口,例如 `example.com`、`192.168.1.10:8080`、`https://example.com`。
+     * 为空表示使用官方服务端。
+     */
+    val serverBaseUrl: String = "",
 ) {
     companion object {
         @Stable

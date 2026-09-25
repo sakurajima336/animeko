@@ -159,6 +159,7 @@ import me.him188.ani.app.ui.subject.episode.video.sidesheet.EpisodeSelectorSheet
 import me.him188.ani.app.ui.subject.episode.video.sidesheet.MediaSelectorSheet
 import me.him188.ani.app.ui.subject.episode.video.topbar.EpisodePlayerTitle
 import me.him188.ani.app.ui.watchtogether.LocalWatchTogetherPlayerController
+import me.him188.ani.app.ui.watchtogether.WatchTogetherTabContent
 import me.him188.ani.app.videoplayer.ui.PlaybackSpeedControllerState
 import me.him188.ani.app.videoplayer.ui.PlayerControllerState
 import me.him188.ani.app.videoplayer.ui.PlayerFocusState
@@ -650,6 +651,8 @@ private fun TabRow(
     commentCount: () -> Int?,
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surface,
+    showWatchTogetherTab: Boolean = true,
+    onWatchTogetherTabClick: (() -> Unit)? = null,
 ) {
     val detailsText = stringResource(Lang.subject_details_tab_details)
     ScrollableTabRow(
@@ -689,6 +692,19 @@ private fun TabRow(
             selectedContentColor = MaterialTheme.colorScheme.primary,
             unselectedContentColor = MaterialTheme.colorScheme.onSurface,
         )
+        if (showWatchTogetherTab) {
+            Tab(
+                selected = pagerState.currentPage == 2,
+                onClick = {
+                    onWatchTogetherTabClick?.invoke()
+                    scope.launch { pagerState.animateScrollToPage(2) }
+                },
+                modifier = Modifier.height(44.dp),
+                text = { Text(stringResource(Lang.watch_together_bubble), softWrap = false) },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 
@@ -810,6 +826,10 @@ private fun EpisodeScreenContentPhone(
                 gridState = vm.commentLazyGirdState,
             )
         },
+        watchTogether = {
+            WatchTogetherTabContent()
+        },
+        showWatchTogetherTab = true,
         modifier = modifier.then(
             if (vm.isFullscreen) {
                 Modifier.fillMaxSize()
@@ -900,9 +920,12 @@ fun EpisodeScreenContentPhoneScaffold(
     video: @Composable () -> Unit,
     episodeDetails: @Composable () -> Unit,
     commentColumn: @Composable () -> Unit,
+    watchTogether: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
     headlineContent: @Composable () -> Unit = {},
     tabRowContent: @Composable () -> Unit = {},
+    showWatchTogetherTab: Boolean = true,
+    onWatchTogetherTabClick: (() -> Unit)? = null,
 ) {
     Column(modifier) {
         video()
@@ -911,7 +934,7 @@ fun EpisodeScreenContentPhoneScaffold(
             return@Column
         }
 
-        val pagerState = rememberPagerState(initialPage = 0) { 2 }
+        val pagerState = rememberPagerState(initialPage = 0) { 3 }
         val scope = rememberCoroutineScope()
 
         Column(Modifier.fillMaxSize()) {
@@ -921,6 +944,8 @@ fun EpisodeScreenContentPhoneScaffold(
                     TabRow(
                         pagerState, scope, commentCount, Modifier.weight(1f),
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        showWatchTogetherTab = showWatchTogetherTab,
+                        onWatchTogetherTabClick = onWatchTogetherTabClick,
                     )
                     Box(
                         modifier = Modifier.weight(0.618f) // width
@@ -944,6 +969,10 @@ fun EpisodeScreenContentPhoneScaffold(
 
                         1 -> {
                             commentColumn()
+                        }
+
+                        2 -> {
+                            watchTogether()
                         }
                     }
                 }
