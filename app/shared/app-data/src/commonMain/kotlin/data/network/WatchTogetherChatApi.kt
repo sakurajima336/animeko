@@ -23,7 +23,6 @@ import kotlinx.serialization.json.Json
 import me.him188.ani.app.domain.foundation.ServerListFeatureConfig
 import me.him188.ani.utils.ktor.ScopedHttpClient
 import me.him188.ani.utils.ktor.UnsafeScopedHttpClientApi
-import me.him188.ani.utils.ktor.use
 
 /**
  * 房间聊天的默认实现。与 [WatchTogetherApiService] 共用同一个服务端地址,
@@ -48,7 +47,7 @@ class DefaultWatchTogetherChatApi(
         }.buildString()
         return client.use {
             runCatching {
-                it.get(url).body<WatchTogetherChatHistoryResponse>().messages
+                get(url).body<WatchTogetherChatHistoryResponse>().messages
             }.getOrDefault(emptyList())
         }
     }
@@ -64,7 +63,7 @@ class DefaultWatchTogetherChatApi(
         }.buildString()
         return client.use {
             runCatching {
-                it.post(url) {
+                post(url) {
                     contentType(ContentType.Application.Json)
                     setBody(WatchTogetherSendChatRequest(sessionNonce, content))
                 }.body<WatchTogetherChatMessage>()
