@@ -42,7 +42,6 @@ import me.him188.ani.app.data.network.EpisodeService
 import me.him188.ani.app.data.network.EpisodeServiceImpl
 import me.him188.ani.app.data.network.RemoteSubjectService
 import me.him188.ani.app.data.network.SubjectService
-import me.him188.ani.app.data.network.WatchTogetherApiService
 import me.him188.ani.app.data.persistent.dataStores
 import me.him188.ani.app.data.persistent.database.AniDatabase
 import me.him188.ani.app.data.persistent.database.MIGRATION_19_20
