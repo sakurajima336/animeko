@@ -1,10 +1,15 @@
+> [!WARNING]
+> 本仓库是 [open-ani/animeko](https://github.com/open-ani/animeko) 的**个人 Fork**，**非官方仓库**。
+> 当前分支尚未做任何代码修改，内容与上游 `main` 保持一致。
+> 问题反馈、功能建议与 PR 请提交到官方仓库；下载请前往官方网站 <https://animeko.org/>。
+
 <div align="center">
 
-![Animeko](https://socialify.git.ci/open-ani/animeko/image?description=1&descriptionEditable=%E9%9B%86%E6%89%BE%E7%95%AA%E3%80%81%E8%BF%BD%E7%95%AA%E3%80%81%E7%9C%8B%E7%95%AA%E7%9A%84%E4%B8%80%E7%AB%99%E5%BC%8F%E5%BC%B9%E5%B9%95%E8%BF%BD%E7%95%AA%E5%B9%B3%E5%8F%B0&font=Jost&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fopen-ani%2Fanimeko%2Frefs%2Fheads%2Fmain%2F.github%2Fassets%2Flogo.png&name=1&owner=1&pattern=Plus&theme=Light)
+![Animeko](https://socialify.git.ci/sakurajima336/animeko/image?description=1&descriptionEditable=%E9%9B%86%E6%89%BE%E7%95%AA%E3%80%81%E8%BF%BD%E7%95%AA%E3%80%81%E7%9C%8B%E7%95%AA%E7%9A%84%E4%B8%80%E7%AB%99%E5%BC%8F%E5%BC%B9%E5%B9%95%E8%BF%BD%E7%95%AA%E5%B9%B3%E5%8F%B0&font=Jost&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fsakurajima336%2Fanimeko%2Frefs%2Fheads%2Fmain%2F.github%2Fassets%2Flogo.png&name=1&owner=1&pattern=Plus&theme=Light)
 
-| 正式版                                                                                                                                                                          | 测试版                                                                                                                                                                                     | 讨论群                                                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [![Stable](https://img.shields.io/github/release/open-ani/ani.svg?maxAge=3600&label=Stable&labelColor=06599d&color=043b69)](https://github.com/open-ani/ani/releases/latest) | [![Beta](https://img.shields.io/github/v/release/open-ani/ani.svg?maxAge=3600&label=Beta&labelColor=2c2c47&color=1c1c39&include_prereleases)](https://github.com/open-ani/ani/releases) | [![Group](https://img.shields.io/badge/Telegram-2CA5E0?style=flat-squeare&logo=telegram&logoColor=white)](https://t.me/openani) |
+| 正式版（本 Fork）                                                                                                                                                                         | 测试版                                                                                                                                                                                     | 讨论群                                                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [![Stable](https://img.shields.io/github/release/sakurajima336/animeko.svg?maxAge=3600&label=Stable&labelColor=06599d&color=043b69)](https://github.com/sakurajima336/animeko/releases/latest) | [![Beta](https://img.shields.io/github/v/release/sakurajima336/animeko.svg?maxAge=3600&label=Beta&labelColor=2c2c47&color=1c1c39&include_prereleases)](https://github.com/sakurajima336/animeko/releases) | [![Group](https://img.shields.io/badge/Telegram-2CA5E0?style=flat-squeare&logo=telegram&logoColor=white)](https://t.me/openani) |
 
 </div>
 
@@ -131,7 +136,8 @@ Animeko 支持所有主流平台：Android、iOS、Windows、macOS、Linux。
 
 ### 参与开发
 
-欢迎你提交 PR 参与开发，
+本仓库为个人 Fork，通常不接受 PR。请前往官方仓库 [open-ani/animeko](https://github.com/open-ani/animeko) 提交 PR。
+
 有关项目技术细节请参考 [CONTRIBUTING](docs/contributing/README.md)。
 
 ## FAQ
