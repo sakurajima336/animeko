@@ -16,10 +16,10 @@ func TestRoomIsolation(t *testing.T) {
 		t.Fatal("different roomIds must map to different chat rooms")
 	}
 
-	if _, err := a.SendChatBySession("nonce-a", "u1", "Alice", nil, "hello from A"); err != nil {
+	if _, err := a.SendChatBySession("nonce-a", explicit("u1", "Alice", nil), "hello from A"); err != nil {
 		t.Fatalf("send in A: %v", err)
 	}
-	if _, err := b.SendChatBySession("nonce-b", "u2", "Bob", nil, "hello from B"); err != nil {
+	if _, err := b.SendChatBySession("nonce-b", explicit("u2", "Bob", nil), "hello from B"); err != nil {
 		t.Fatalf("send in B: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestGetOrCreateIsStable(t *testing.T) {
 func TestSendRequiresSession(t *testing.T) {
 	m := NewManager()
 	r := m.GetOrCreateChatRoom("official_room")
-	if _, err := r.SendChatBySession("", "u1", "Alice", nil, "hi"); err != ErrMissingSession {
+	if _, err := r.SendChatBySession("", explicit("u1", "Alice", nil), "hi"); err != ErrMissingSession {
 		t.Fatalf("err = %v, want ErrMissingSession", err)
 	}
 	if r.MessageCount() != 0 {
@@ -66,7 +66,7 @@ func TestIdentityFollowsOfficialMember(t *testing.T) {
 	r := m.GetOrCreateChatRoom("official_room")
 
 	avatar := "https://example.com/a.png"
-	first, err := r.SendChatBySession("nonce", "u1", "Alice", &avatar, "hi")
+	first, err := r.SendChatBySession("nonce", explicit("u1", "Alice", &avatar), "hi")
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestIdentityFollowsOfficialMember(t *testing.T) {
 	}
 
 	// 后续请求不带昵称与头像时, 沿用首次登记的官方成员信息。
-	second, err := r.SendChatBySession("nonce", "u1", "", nil, "again")
+	second, err := r.SendChatBySession("nonce", Sender{}, "again")
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -92,16 +92,62 @@ func TestIdentityUpdatesWhenOfficialMemberChanges(t *testing.T) {
 	m := NewManager()
 	r := m.GetOrCreateChatRoom("official_room")
 
-	if _, err := r.SendChatBySession("nonce", "u1", "Alice", nil, "hi"); err != nil {
+	if _, err := r.SendChatBySession("nonce", explicit("u1", "Alice", nil), "hi"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	avatar := "https://example.com/b.png"
-	msg, err := r.SendChatBySession("nonce", "u2", "Bob", &avatar, "hi again")
+	msg, err := r.SendChatBySession("nonce", explicit("u2", "Bob", &avatar), "hi again")
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if msg.UserID != "u2" || msg.Nickname != "Bob" || msg.AvatarURL == nil || *msg.AvatarURL != avatar {
 		t.Fatalf("message identity = %q / %q / %v, want u2 / Bob / %q", msg.UserID, msg.Nickname, msg.AvatarURL, avatar)
+	}
+}
+
+// TestAnonymousFallbackDoesNotReplaceRegisteredIdentity 匿名兜底不得覆盖已登记的官方成员身份。
+//
+// 客户端未提供任何身份时 identifyUser 会回落到匿名 ID; 那不是"换了个人",
+// 不能因此把该 sessionNonce 已登记的昵称/头像覆盖成匿名值。
+func TestAnonymousFallbackDoesNotReplaceRegisteredIdentity(t *testing.T) {
+	m := NewManager()
+	r := m.GetOrCreateChatRoom("official_room")
+
+	avatar := "https://example.com/alice.png"
+	if _, err := r.SendChatBySession("nonce", explicit("u1", "Alice", &avatar), "hi"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	// 模拟匿名兜底: Explicit=false, UserID 是 anon_xxx。
+	anon := Sender{UserID: "anon_deadbeef", Nickname: "游客deadbeef"}
+	msg, err := r.SendChatBySession("nonce", anon, "again")
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	if msg.UserID != "u1" || msg.Nickname != "Alice" {
+		t.Fatalf("identity = %q / %q, want u1 / Alice", msg.UserID, msg.Nickname)
+	}
+	if msg.AvatarURL == nil || *msg.AvatarURL != avatar {
+		t.Fatalf("avatar = %v, want %q", msg.AvatarURL, avatar)
+	}
+}
+
+// TestAnonymousSenderKeepsItsOwnIdentityOnFirstSend 匿名用户首次发言时正常登记自己的身份。
+func TestAnonymousSenderKeepsItsOwnIdentityOnFirstSend(t *testing.T) {
+	m := NewManager()
+	r := m.GetOrCreateChatRoom("official_room")
+
+	msg, err := r.SendChatBySession(
+		"nonce",
+		Sender{UserID: "anon_deadbeef", Nickname: "游客deadbeef"},
+		"hi",
+	)
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if msg.UserID != "anon_deadbeef" || msg.Nickname != "游客deadbeef" {
+		t.Fatalf("identity = %q / %q, want anon_deadbeef / 游客deadbeef", msg.UserID, msg.Nickname)
 	}
 }
 
@@ -112,7 +158,7 @@ func TestChatBroadcast(t *testing.T) {
 	ch := r.Subscribe()
 	defer r.Unsubscribe(ch)
 
-	if _, err := r.SendChatBySession("nonce", "u1", "Alice", nil, "broadcast me"); err != nil {
+	if _, err := r.SendChatBySession("nonce", explicit("u1", "Alice", nil), "broadcast me"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 
@@ -136,7 +182,7 @@ func TestConcurrentSend(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _ = r.SendChatBySession("nonce", "u1", "Alice", nil, "msg")
+			_, _ = r.SendChatBySession("nonce", explicit("u1", "Alice", nil), "msg")
 		}(i)
 	}
 	wg.Wait()
@@ -151,7 +197,7 @@ func TestHistoryCap(t *testing.T) {
 	m := NewManager()
 	r := m.GetOrCreateChatRoom("official_room")
 	for i := 0; i < maxChatHistory+50; i++ {
-		if _, err := r.SendChatBySession("nonce", "u1", "Alice", nil, "msg"); err != nil {
+		if _, err := r.SendChatBySession("nonce", explicit("u1", "Alice", nil), "msg"); err != nil {
 			t.Fatalf("send %d: %v", i, err)
 		}
 	}
@@ -165,10 +211,15 @@ func TestStats(t *testing.T) {
 	m := NewManager()
 	a := m.GetOrCreateChatRoom("room_a")
 	m.GetOrCreateChatRoom("room_b")
-	_, _ = a.SendChatBySession("nonce", "u1", "Alice", nil, "hi")
+	_, _ = a.SendChatBySession("nonce", explicit("u1", "Alice", nil), "hi")
 
 	rooms, messages := m.Stats()
 	if rooms != 2 || messages != 1 {
 		t.Fatalf("stats = (%d, %d), want (2, 1)", rooms, messages)
 	}
+}
+
+// explicit 构造一个客户端显式提供了身份(官方成员信息)的 Sender。
+func explicit(userID, nickname string, avatar *string) Sender {
+	return Sender{UserID: userID, Nickname: nickname, Avatar: avatar, Explicit: true}
 }

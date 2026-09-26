@@ -45,6 +45,19 @@ func NewChatRoom(id string) *ChatRoom {
 	}
 }
 
+// Sender 一条聊天消息的发言者身份。
+//
+// Explicit 表示 UserID 是否由客户端**显式**提供(官方成员信息或 token)。
+// 客户端未提供任何身份时会回落到按 IP + User-Agent 生成的匿名 ID, 那种情况下
+// 不能把它当作"换了个人" —— 否则每次省略都会把该 sessionNonce 已登记的官方成员
+// 信息覆盖成匿名值。
+type Sender struct {
+	UserID   string
+	Nickname string
+	Avatar   *string
+	Explicit bool
+}
+
 // SendChatBySession 以官方 sessionNonce 发送一条消息。
 //
 // sessionNonce 由官方服务端签发, 这里只把它当作参与者标识。
@@ -53,9 +66,7 @@ func NewChatRoom(id string) *ChatRoom {
 // 保证聊天室里的昵称/头像与官方房间成员一致且稳定。
 func (r *ChatRoom) SendChatBySession(
 	sessionNonce string,
-	userID string,
-	nickname string,
-	avatar *string,
+	sender Sender,
 	content string,
 ) (*protocol.ChatMessage, error) {
 	if sessionNonce == "" {
@@ -67,30 +78,36 @@ func (r *ChatRoom) SendChatBySession(
 	r.lastActive = time.Now()
 
 	registered, ok := r.sessions[sessionNonce]
-	if !ok {
-		registered = participant{UserID: userID, Nickname: nickname, Avatar: avatar}
-		r.sessions[sessionNonce] = registered
-	} else if userID != "" && userID != registered.UserID {
+	switch {
+	case !ok:
+		// 首次发言: 按本次带来的信息登记(此时即便是匿名身份也没有更好的来源)。
+		registered = participant{UserID: sender.UserID, Nickname: sender.Nickname, Avatar: sender.Avatar}
+
+	case sender.Explicit && sender.UserID != "" && sender.UserID != registered.UserID:
 		// 官方房间重新分配了身份: 以本次请求为准。
-		registered = participant{UserID: userID, Nickname: nickname, Avatar: avatar}
-		r.sessions[sessionNonce] = registered
+		registered = participant{UserID: sender.UserID, Nickname: sender.Nickname, Avatar: sender.Avatar}
+
+	case sender.Explicit:
+		// 同一身份, 仅补齐本次带来的昵称/头像。
+		if sender.Nickname != "" {
+			registered.Nickname = sender.Nickname
+		}
+		if sender.Avatar != nil {
+			registered.Avatar = sender.Avatar
+		}
+
+	default:
+		// 匿名兜底(客户端没提供任何身份): 完全忽略, 沿用已登记身份。
+		// 否则每次省略都会把官方成员信息覆盖成"游客xxxxxx"。
 	}
-	if userID == "" {
-		userID = registered.UserID
-	}
-	if nickname == "" {
-		nickname = registered.Nickname
-	}
-	if avatar == nil {
-		avatar = registered.Avatar
-	}
+	r.sessions[sessionNonce] = registered
 
 	msg := &protocol.ChatMessage{
 		ID:        newID("m"),
 		RoomID:    r.ID,
-		UserID:    userID,
-		Nickname:  nickname,
-		AvatarURL: avatar,
+		UserID:    registered.UserID,
+		Nickname:  registered.Nickname,
+		AvatarURL: registered.Avatar,
 		Content:   content,
 		SentAt:    time.Now().UnixMilli(),
 	}

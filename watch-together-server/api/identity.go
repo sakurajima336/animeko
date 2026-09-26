@@ -11,6 +11,8 @@ type identity struct {
 	id       string
 	nickname string
 	avatar   *string
+	// explicit 是否由客户端显式提供身份(官方成员信息或 token), 而非匿名兜底。
+	explicit bool
 }
 
 // identityHints 客户端在请求体里显式透传的身份信息。
@@ -40,7 +42,7 @@ func identifyUser(r *http.Request, hints identityHints) identity {
 		if nickname == "" {
 			nickname = "用户" + userID
 		}
-		return identity{id: userID, nickname: nickname, avatar: avatar}
+		return identity{id: userID, nickname: nickname, avatar: avatar, explicit: true}
 	}
 
 	if token := bearerToken(r); token != "" {
@@ -49,6 +51,7 @@ func identifyUser(r *http.Request, hints identityHints) identity {
 			id:       "u_" + h,
 			nickname: firstNonEmpty(nickname, "用户"+h[:6]),
 			avatar:   avatar,
+			explicit: true,
 		}
 	}
 
