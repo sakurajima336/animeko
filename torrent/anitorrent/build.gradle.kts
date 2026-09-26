@@ -62,10 +62,23 @@ fun getAnitorrentTriple(): String? {
         Os.Linux -> {
             when (getArch()) {
                 Arch.X86_64 -> "linux-x64"
-                else -> error("Unsupported architecture: ${getArch()}")
+                // 上游未发布 Linux ARM64 的原生运行时 (anitorrent-native-desktop:linux-aarch64),
+                // 因此默认不声明依赖 —— 声明了在配置阶段就会解析失败, 从而中断整个构建.
+                // 自行编译并放进 ani.anitorrent.localNativesRepo 后, 用
+                // `local.properties: ani.anitorrent.linux-aarch64=true` 打开.
+                Arch.AARCH64 -> if (linuxAarch64NativeEnabled) "linux-aarch64" else null
             }
         }
 
         Os.Unknown -> error("Unsupported OS: ${getOs()}")
     }
 }
+
+/**
+ * Linux ARM64 是否声明 anitorrent 原生运行时依赖.
+ *
+ * 默认关闭, 因为上游没有对应的产物; 打开前需要先准备好本地仓库里的自建原生 jar.
+ */
+val Project.linuxAarch64NativeEnabled: Boolean
+    get() = getLocalProperty("ani.anitorrent.linux-aarch64")?.toBooleanStrictOrNull() ?: false
+

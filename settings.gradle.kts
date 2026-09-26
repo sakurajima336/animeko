@@ -35,6 +35,7 @@ dependencyResolutionManagement {
         maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
         maven("https://androidx.dev/storage/compose-compiler/repository/")
         maven("https://jogamp.org/deployment/maven")
+        anitorrentLocalNativesRepository()
     }
     versionCatalogs {
         create("anitorrentLibs") {
@@ -183,6 +184,38 @@ val localProperties: Provider<Properties> =
         .map { text -> Properties().apply { text.reader().use { load(it) } } }
 
 fun findLocalProperty(key: String): String? = localProperties.orNull?.getProperty(key)
+
+/**
+ * 只用于提供 `anitorrent-native-desktop` 平台原生运行时的本地仓库.
+ *
+ * 上游 anitorrent 未发布 Linux ARM64 产物 (README 的 Supported targets 只有 linux x86_64),
+ * 自行编译后把 jar 放进本地仓库即可补上, 依赖坐标无需改动.
+ *
+ * 必须用 `exclusiveContent` 而不是普通 `maven {}`: 仓库按声明顺序解析, 该模块的元数据
+ * 会先被 mavenCentral 命中, 而 Central 上的 .module 只登记了它自己发布的 classifier,
+ * 于是自建的 `linux-aarch64` jar 永远不可达. 独占后该模块整体走本仓库解析 —— 元数据用
+ * 从 Central 取回的同一份 .module, 自建的原生 jar 因此可达.
+ */
+fun RepositoryHandler.anitorrentLocalNativesRepository() {
+    // 不能用文件末尾的 localProperties: settings 的 top-level val 按声明顺序初始化,
+    // 这里执行时它还是 null. 单独读一次.
+    val repoUrl = layout.settingsDirectory.file("local.properties").asFile
+        .takeIf { it.isFile }
+        ?.let { file -> Properties().apply { file.inputStream().buffered().use { load(it) } } }
+        ?.getProperty("ani.anitorrent.localNativesRepo")
+        ?: File(System.getProperty("user.home"), ".m2/repository").toURI().toString()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "anitorrentLocalNatives"
+                url = uri(repoUrl)
+            }
+        }
+        filter {
+            includeModule("org.openani.anitorrent", "anitorrent-native-desktop")
+        }
+    }
+}
 
 findLocalProperty("ani.build.mediamp.path")?.let { mediampPath ->
     println("i:: Including mediamp as a Composite Build from: $mediampPath")
