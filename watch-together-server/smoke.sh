@@ -19,13 +19,15 @@ printf 'report: '; curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/v2/wa
 printf 'leave:  '; curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/leave" -d '{}'
 
 echo "== 3. Alice 在官方房间 A 发言 =="
-curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/chat?userId=u1&nickname=Alice" \
+curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/chat" \
   -H 'Content-Type: application/json' \
+  -H 'X-Ani-User-Id: u1' -H 'X-Ani-Nickname: Alice' -H 'X-Ani-Avatar: https://example.com/alice.png' \
   -d "{\"sessionNonce\":\"$NONCE_A\",\"content\":\"大家好,这是A房间\"}"; echo
 
 echo "== 4. Bob 在官方房间 B 发言 =="
-curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_B/chat?userId=u2&nickname=Bob" \
+curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_B/chat" \
   -H 'Content-Type: application/json' \
+  -H 'X-Ani-User-Id: u2' -H 'X-Ani-Nickname: Bob' -H 'X-Ani-Avatar: https://example.com/bob.png' \
   -d "{\"sessionNonce\":\"$NONCE_B\",\"content\":\"B房间消息\"}"; echo
 
 echo "== 5. 无 sessionNonce 应被拒绝 =="
@@ -42,8 +44,9 @@ curl -s "$BASE/v2/watch-together/rooms/$ROOM_B/chat"; echo
 echo "== 8. SSE 实时推送(后台 6 秒) =="
 (timeout 6 curl -sN "$BASE/v2/watch-together/rooms/$ROOM_A/events" > /tmp/chat_sse.txt) &
 sleep 1
-curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/chat?userId=u1&nickname=Alice" \
+curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/chat" \
   -H 'Content-Type: application/json' \
+  -H 'X-Ani-User-Id: u1' -H 'X-Ani-Nickname: Alice' \
   -d "{\"sessionNonce\":\"$NONCE_A\",\"content\":\"SSE 测试消息\"}" > /dev/null
 wait
 echo "--- SSE 收到 ---"

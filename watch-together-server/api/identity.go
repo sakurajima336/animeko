@@ -13,33 +13,51 @@ type identity struct {
 	avatar   *string
 }
 
+// identityHints 客户端在请求体里显式透传的身份信息。
+//
+// 客户端把它所在官方房间里的成员信息(昵称、头像)带过来, 使聊天室显示的名字与头像
+// 与官方「一起看」成员列表一致。
+type identityHints struct {
+	userID   string
+	nickname string
+	avatar   string
+}
+
 // identifyUser 识别请求用户。
 //
 // 自托管服务端不接入 Bangumi 账号体系,因此按以下优先级确定身份:
-//  1. 显式传入的 userId / nickname(query 或 header),便于调试与第三方集成;
+//  1. 请求体透传的 sender* 字段(官方房间成员信息),其次 query / header 里的同名字段;
 //  2. Authorization: Bearer <token> —— 同一 token 视为同一用户(稳定且跨请求一致);
 //  3. 兜底:按 IP + User-Agent 生成稳定匿名 ID。
 //
 // 生产部署若需要真实账号,可在此接入 Bangumi token 校验。
-func identifyUser(r *http.Request, _ string) identity {
-	if uid := firstNonEmpty(r.URL.Query().Get("userId"), r.Header.Get("X-Ani-User-Id")); uid != "" {
-		nick := firstNonEmpty(r.URL.Query().Get("nickname"), r.Header.Get("X-Ani-Nickname"))
-		if nick == "" {
-			nick = "用户" + uid
+func identifyUser(r *http.Request, hints identityHints) identity {
+	userID := firstNonEmpty(hints.userID, r.URL.Query().Get("userId"), r.Header.Get("X-Ani-User-Id"))
+	nickname := firstNonEmpty(hints.nickname, r.URL.Query().Get("nickname"), r.Header.Get("X-Ani-Nickname"))
+	avatar := optionalValue(hints.avatar, r.URL.Query().Get("avatar"), r.Header.Get("X-Ani-Avatar"))
+
+	if userID != "" {
+		if nickname == "" {
+			nickname = "用户" + userID
 		}
-		return identity{id: uid, nickname: nick}
+		return identity{id: userID, nickname: nickname, avatar: avatar}
 	}
 
 	if token := bearerToken(r); token != "" {
 		h := hash(token)
 		return identity{
 			id:       "u_" + h,
-			nickname: "用户" + h[:6],
+			nickname: firstNonEmpty(nickname, "用户"+h[:6]),
+			avatar:   avatar,
 		}
 	}
 
 	anon := "anon_" + hash(clientIP(r)+"|"+r.UserAgent())
-	return identity{id: anon, nickname: "游客" + anon[len(anon)-6:]}
+	return identity{
+		id:       anon,
+		nickname: firstNonEmpty(nickname, "游客"+anon[len(anon)-6:]),
+		avatar:   avatar,
+	}
 }
 
 func bearerToken(r *http.Request) string {
@@ -70,6 +88,16 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// optionalValue 返回第一个非空值; 全为空时返回 nil, 使 JSON 省略该字段。
+func optionalValue(values ...string) *string {
+	for _, v := range values {
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			return &trimmed
+		}
+	}
+	return nil
 }
 
 // hash 把凭据映射为稳定短摘要(FNV-1a,仅用于身份映射,非安全用途)。

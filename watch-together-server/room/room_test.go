@@ -16,10 +16,10 @@ func TestRoomIsolation(t *testing.T) {
 		t.Fatal("different roomIds must map to different chat rooms")
 	}
 
-	if _, err := a.SendChatBySession("nonce-a", "u1", "Alice", "hello from A"); err != nil {
+	if _, err := a.SendChatBySession("nonce-a", "u1", "Alice", nil, "hello from A"); err != nil {
 		t.Fatalf("send in A: %v", err)
 	}
-	if _, err := b.SendChatBySession("nonce-b", "u2", "Bob", "hello from B"); err != nil {
+	if _, err := b.SendChatBySession("nonce-b", "u2", "Bob", nil, "hello from B"); err != nil {
 		t.Fatalf("send in B: %v", err)
 	}
 
@@ -52,11 +52,56 @@ func TestGetOrCreateIsStable(t *testing.T) {
 func TestSendRequiresSession(t *testing.T) {
 	m := NewManager()
 	r := m.GetOrCreateChatRoom("official_room")
-	if _, err := r.SendChatBySession("", "u1", "Alice", "hi"); err != ErrMissingSession {
+	if _, err := r.SendChatBySession("", "u1", "Alice", nil, "hi"); err != ErrMissingSession {
 		t.Fatalf("err = %v, want ErrMissingSession", err)
 	}
 	if r.MessageCount() != 0 {
 		t.Fatal("rejected message must not be stored")
+	}
+}
+
+// TestIdentityFollowsOfficialMember 昵称与头像随请求透传, 且同一 nonce 缺省时沿用登记值。
+func TestIdentityFollowsOfficialMember(t *testing.T) {
+	m := NewManager()
+	r := m.GetOrCreateChatRoom("official_room")
+
+	avatar := "https://example.com/a.png"
+	first, err := r.SendChatBySession("nonce", "u1", "Alice", &avatar, "hi")
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if first.Nickname != "Alice" || first.AvatarURL == nil || *first.AvatarURL != avatar {
+		t.Fatalf("first message identity = %q / %v, want Alice / %q", first.Nickname, first.AvatarURL, avatar)
+	}
+
+	// 后续请求不带昵称与头像时, 沿用首次登记的官方成员信息。
+	second, err := r.SendChatBySession("nonce", "u1", "", nil, "again")
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if second.Nickname != "Alice" {
+		t.Fatalf("nickname = %q, want Alice (registered on first send)", second.Nickname)
+	}
+	if second.AvatarURL == nil || *second.AvatarURL != avatar {
+		t.Fatalf("avatar = %v, want %q", second.AvatarURL, avatar)
+	}
+}
+
+// TestIdentityUpdatesWhenOfficialMemberChanges 官方成员换了身份(同 nonce 新 userId)时以新信息为准。
+func TestIdentityUpdatesWhenOfficialMemberChanges(t *testing.T) {
+	m := NewManager()
+	r := m.GetOrCreateChatRoom("official_room")
+
+	if _, err := r.SendChatBySession("nonce", "u1", "Alice", nil, "hi"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	avatar := "https://example.com/b.png"
+	msg, err := r.SendChatBySession("nonce", "u2", "Bob", &avatar, "hi again")
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if msg.UserID != "u2" || msg.Nickname != "Bob" || msg.AvatarURL == nil || *msg.AvatarURL != avatar {
+		t.Fatalf("message identity = %q / %q / %v, want u2 / Bob / %q", msg.UserID, msg.Nickname, msg.AvatarURL, avatar)
 	}
 }
 
@@ -67,7 +112,7 @@ func TestChatBroadcast(t *testing.T) {
 	ch := r.Subscribe()
 	defer r.Unsubscribe(ch)
 
-	if _, err := r.SendChatBySession("nonce", "u1", "Alice", "broadcast me"); err != nil {
+	if _, err := r.SendChatBySession("nonce", "u1", "Alice", nil, "broadcast me"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 
@@ -91,7 +136,7 @@ func TestConcurrentSend(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _ = r.SendChatBySession("nonce", "u1", "Alice", "msg")
+			_, _ = r.SendChatBySession("nonce", "u1", "Alice", nil, "msg")
 		}(i)
 	}
 	wg.Wait()
@@ -106,7 +151,7 @@ func TestHistoryCap(t *testing.T) {
 	m := NewManager()
 	r := m.GetOrCreateChatRoom("official_room")
 	for i := 0; i < maxChatHistory+50; i++ {
-		if _, err := r.SendChatBySession("nonce", "u1", "Alice", "msg"); err != nil {
+		if _, err := r.SendChatBySession("nonce", "u1", "Alice", nil, "msg"); err != nil {
 			t.Fatalf("send %d: %v", i, err)
 		}
 	}
@@ -120,7 +165,7 @@ func TestStats(t *testing.T) {
 	m := NewManager()
 	a := m.GetOrCreateChatRoom("room_a")
 	m.GetOrCreateChatRoom("room_b")
-	_, _ = a.SendChatBySession("nonce", "u1", "Alice", "hi")
+	_, _ = a.SendChatBySession("nonce", "u1", "Alice", nil, "hi")
 
 	rooms, messages := m.Stats()
 	if rooms != 2 || messages != 1 {

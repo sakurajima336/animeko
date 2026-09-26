@@ -109,6 +109,56 @@ func TestChatWithOfficialRoomId(t *testing.T) {
 	}
 }
 
+// TestChatCarriesOfficialMemberIdentity 客户端透传的官方成员昵称与头像出现在消息里。
+func TestChatCarriesOfficialMemberIdentity(t *testing.T) {
+	srv := newTestServer()
+	chatPath := "/v2/watch-together/rooms/r_official_identity/chat"
+	avatar := "https://example.com/avatar.png"
+
+	rec := postJSON(t, srv, chatPath+"?userId=u1&nickname=Alice&avatar="+avatar,
+		`{"sessionNonce":"official-nonce","content":"hello"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var sent protocol.ChatMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &sent); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if sent.Nickname != "Alice" {
+		t.Fatalf("nickname = %q, want Alice", sent.Nickname)
+	}
+	if sent.AvatarURL == nil || *sent.AvatarURL != avatar {
+		t.Fatalf("avatarUrl = %v, want %q", sent.AvatarURL, avatar)
+	}
+}
+
+// TestChatAcceptsIdentityHeaders 身份也可以放在 header 里(避免 URL 编码问题)。
+func TestChatAcceptsIdentityHeaders(t *testing.T) {
+	srv := newTestServer()
+	avatar := "https://example.com/avatar.png"
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v2/watch-together/rooms/r_official_headers/chat",
+		strings.NewReader(`{"sessionNonce":"official-nonce","content":"hi"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Ani-User-Id", "u1")
+	req.Header.Set("X-Ani-Nickname", "Alice")
+	req.Header.Set("X-Ani-Avatar", avatar)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var sent protocol.ChatMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &sent); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if sent.Nickname != "Alice" || sent.AvatarURL == nil || *sent.AvatarURL != avatar {
+		t.Fatalf("identity = %q / %v, want Alice / %q", sent.Nickname, sent.AvatarURL, avatar)
+	}
+}
+
 // TestChatRequiresSessionNonce 没有官方 sessionNonce 不能发言。
 func TestChatRequiresSessionNonce(t *testing.T) {
 	srv := newTestServer()

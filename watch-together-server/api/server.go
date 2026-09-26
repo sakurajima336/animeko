@@ -109,9 +109,13 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, roomID strin
 			return
 		}
 
-		user := identifyUser(r, roomID)
+		user := identifyUser(r, identityHints{
+			userID:   req.SenderUserID,
+			nickname: req.SenderNickname,
+			avatar:   req.SenderAvatarURL,
+		})
 		room := s.rooms.GetOrCreateChatRoom(roomID)
-		msg, err := room.SendChatBySession(req.SessionNonce, user.id, user.nickname, content)
+		msg, err := room.SendChatBySession(req.SessionNonce, user.id, user.nickname, user.avatar, content)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "CHAT_FAILED", err.Error())
 			return

@@ -52,6 +52,7 @@ GET /v2/watch-together/rooms/{roomId}/chat
       "roomId": "r_official_id",
       "userId": "u_xxx",
       "nickname": "Alice",
+      "avatarUrl": "https://example.com/avatar.png",
       "content": "hello",
       "sentAt": 1790352808861,
       "system": false
@@ -65,11 +66,14 @@ GET /v2/watch-together/rooms/{roomId}/chat
 ```http
 POST /v2/watch-together/rooms/{roomId}/chat
 Content-Type: application/json
+X-Ani-User-Id: u_xxx
+X-Ani-Nickname: Alice
+X-Ani-Avatar: https://example.com/avatar.png
 
 {"sessionNonce": "<官方下发的 sessionNonce>", "content": "hello"}
 ```
 
-`sender` 身份由 `sessionNonce` 对应到该扩展内的参与者记录。
+`sender` 身份由 `sessionNonce` 对应到该扩展内的参与者记录；昵称与头像也可放在 query（`userId` / `nickname` / `avatar`）里。
 
 ### SSE
 
@@ -108,11 +112,13 @@ curl http://localhost:8788/healthz
 
 ## 身份
 
-本扩展不接入 Bangumi 账号体系，参与者由官方 `sessionNonce` 标识，昵称按以下优先级确定：
+本扩展不接入 Bangumi 账号体系，参与者由官方 `sessionNonce` 标识。**昵称与头像来自官方房间成员信息**，由客户端在发言时透传，因此聊天室里显示的名字与头像与官方「一起看」成员列表一致：
 
-1. 显式 `userId` / `nickname`（query 或 `X-Ani-User-Id` / `X-Ani-Nickname` 头）
+1. 显式 `userId` / `nickname` / `avatar`（query 或 `X-Ani-User-Id` / `X-Ani-Nickname` / `X-Ani-Avatar` 头）
 2. `Authorization: Bearer <token>`
 3. 兜底：按 IP + User-Agent 生成稳定匿名 ID
+
+同一 `sessionNonce` 首次发言时登记身份，之后请求缺省该字段则沿用登记值，避免客户端漏传时昵称退化；若同一 nonce 带来了不同的 `userId`（官方房间重新分配身份），则以新信息为准。
 
 生产部署如需真实账号，请在 `api/identity.go` 接入校验。
 

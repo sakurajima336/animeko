@@ -47,9 +47,17 @@ func NewChatRoom(id string) *ChatRoom {
 
 // SendChatBySession 以官方 sessionNonce 发送一条消息。
 //
-// sessionNonce 由官方服务端签发, 这里只把它当作参与者标识;
-// 首次出现的 nonce 会按传入的身份信息登记。
-func (r *ChatRoom) SendChatBySession(sessionNonce, userID, nickname string, content string) (*protocol.ChatMessage, error) {
+// sessionNonce 由官方服务端签发, 这里只把它当作参与者标识。
+// 昵称与头像取自官方房间成员信息, 由客户端随请求透传:
+// 同一 nonce 首次登记后即固定下来, 后续请求缺省时沿用登记值,
+// 保证聊天室里的昵称/头像与官方房间成员一致且稳定。
+func (r *ChatRoom) SendChatBySession(
+	sessionNonce string,
+	userID string,
+	nickname string,
+	avatar *string,
+	content string,
+) (*protocol.ChatMessage, error) {
 	if sessionNonce == "" {
 		return nil, ErrMissingSession
 	}
@@ -58,17 +66,33 @@ func (r *ChatRoom) SendChatBySession(sessionNonce, userID, nickname string, cont
 	defer r.mu.Unlock()
 	r.lastActive = time.Now()
 
-	if _, ok := r.sessions[sessionNonce]; !ok {
-		r.sessions[sessionNonce] = participant{UserID: userID, Nickname: nickname}
+	registered, ok := r.sessions[sessionNonce]
+	if !ok {
+		registered = participant{UserID: userID, Nickname: nickname, Avatar: avatar}
+		r.sessions[sessionNonce] = registered
+	} else if userID != "" && userID != registered.UserID {
+		// 官方房间重新分配了身份: 以本次请求为准。
+		registered = participant{UserID: userID, Nickname: nickname, Avatar: avatar}
+		r.sessions[sessionNonce] = registered
+	}
+	if userID == "" {
+		userID = registered.UserID
+	}
+	if nickname == "" {
+		nickname = registered.Nickname
+	}
+	if avatar == nil {
+		avatar = registered.Avatar
 	}
 
 	msg := &protocol.ChatMessage{
-		ID:       newID("m"),
-		RoomID:   r.ID,
-		UserID:   userID,
-		Nickname: nickname,
-		Content:  content,
-		SentAt:   time.Now().UnixMilli(),
+		ID:        newID("m"),
+		RoomID:    r.ID,
+		UserID:    userID,
+		Nickname:  nickname,
+		AvatarURL: avatar,
+		Content:   content,
+		SentAt:    time.Now().UnixMilli(),
 	}
 	r.messages = append(r.messages, msg)
 	if len(r.messages) > maxChatHistory {
