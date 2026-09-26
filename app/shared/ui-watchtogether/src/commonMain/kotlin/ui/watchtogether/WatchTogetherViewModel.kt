@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import me.him188.ani.app.data.network.WatchTogetherChatApi
 import me.him188.ani.app.data.network.WatchTogetherChatMessage
+import me.him188.ani.app.data.network.WatchTogetherChatSender
 import me.him188.ani.app.data.network.WatchTogetherJoinException
 import me.him188.ani.app.data.network.WatchTogetherJoinFailure
 import me.him188.ani.app.data.repository.user.SettingsRepository
@@ -53,6 +55,30 @@ open class WatchTogetherViewModel : AbstractViewModel(), KoinComponent {
     private val dialogOpenRequestChannel = Channel<Unit>(Channel.BUFFERED)
 
     internal val dialogOpenRequests: Flow<Unit> = dialogOpenRequestChannel.receiveAsFlow()
+
+    /** 官方一起看房间里的成员身份, 用于把聊天消息归属到官方成员(昵称与头像以官方为准)。 */
+    private val roomMemberIdentities: StateFlow<List<WatchTogetherMemberIdentity>> = manager.state
+        .flatMapLatest { state ->
+            when (state) {
+                is WatchTogetherState.InRoom -> state.session.snapshot.map { snapshot ->
+                    snapshot.members.map { member ->
+                        WatchTogetherMemberIdentity(
+                            userId = member.userId,
+                            nickname = member.nickname,
+                            avatarUrl = member.avatarUrl,
+                        )
+                    }
+                }
+
+                else -> flowOf(emptyList<WatchTogetherMemberIdentity>())
+            }
+        }
+        .stateInBackground(emptyList())
+
+    /** 自己的成员标识, 与官方房间一致。用于把聊天消息区分成"我"与"他人"。 */
+    val selfUserId: StateFlow<String?> = selfInfoProducer.flow
+        .map { it.selfInfo?.id?.toString() }
+        .stateInBackground<String?>(initialValue = null)
 
     private val roomProjection = manager.state.flatMapLatest { state ->
         when (state) {
@@ -93,27 +119,42 @@ open class WatchTogetherViewModel : AbstractViewModel(), KoinComponent {
     val effects: Flow<WatchTogetherEffect> = manager.effects
 
     /**
-     * 当前房间的聊天消息。房间之间消息隔离由服务端保证,
-     * 离开房间后清空,避免把上一个房间的消息带到下一个房间。
+     * 当前房间的聊天消息, 已按官方房间成员信息补齐昵称/头像。
+     *
+     * 房间之间消息隔离由服务端保证, 离开房间后清空,避免把上一个房间的消息带到下一个房间。
      */
     val chatMessages: StateFlow<List<WatchTogetherChatMessage>> = manager.state
-        .flatMapLatest { state ->
-            when (state) {
-                is WatchTogetherState.InRoom -> {
-                    val roomId = state.session.roomId
-                    // 每 3 秒拉一次历史,作为 SSE 之外的兜底(例如连接降级时)。
-                    flow<List<WatchTogetherChatMessage>> {
-                        while (true) {
-                            emit(chatApi.fetchHistory(roomId))
-                            delay(3_000L)
-                        }
+        .map { (it as? WatchTogetherState.InRoom)?.session?.roomId }
+        .distinctUntilChanged()
+        .flatMapLatest { roomId ->
+            if (roomId == null) {
+                flowOf(emptyList<WatchTogetherChatMessage>())
+            } else {
+                // 每 3 秒拉一次历史,作为 SSE 之外的兜底(例如连接降级时)。
+                flow {
+                    while (true) {
+                        emit(chatApi.fetchHistory(roomId))
+                        delay(3_000L)
                     }
                 }
-
-                else -> flowOf(emptyList())
             }
         }
+        // 成员列表变化时只重新投影昵称/头像, 不打断上面的轮询。
+        .combine(roomMemberIdentities) { messages, members ->
+            messages.map { it.withOfficialIdentity(members) }
+        }
         .stateInBackground(emptyList())
+    /**
+     * 把一条消息归属到官方房间成员: 官方成员列表是昵称与头像的权威来源,
+     * 服务端只做透传与兜底(发言者可能已离开房间)。
+     */
+    private fun WatchTogetherChatMessage.withOfficialIdentity(
+        members: List<WatchTogetherMemberIdentity>,
+    ): WatchTogetherChatMessage {
+        if (system) return this
+        val member = members.firstOrNull { it.userId == userId } ?: return this
+        return copy(nickname = member.nickname, avatarUrl = member.avatarUrl ?: avatarUrl)
+    }
 
     /**
      * 聊天扩展链接, 空串表示未启用扩展。
@@ -167,14 +208,34 @@ open class WatchTogetherViewModel : AbstractViewModel(), KoinComponent {
      * 在当前房间发送一条聊天消息。未加入房间时无操作。
      *
      * nonce 与 roomId 由 [WatchTogetherManager] 提供,UI 层不直接接触会话凭据。
+     * 昵称与头像取自官方房间成员信息, 因此聊天室里的显示与官方成员列表一致。
      */
     fun sendChatMessage(content: String) {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return
         launchInBackground {
             val credentials = manager.currentRoomCredentials() ?: return@launchInBackground
-            chatApi.send(credentials.roomId, credentials.sessionNonce, trimmed)
+            chatApi.send(
+                roomId = credentials.roomId,
+                sessionNonce = credentials.sessionNonce,
+                content = trimmed,
+                sender = currentSender(),
+            )
         }
+    }
+
+    /**
+     * 当前用户在官方房间里的成员信息; 房间成员列表尚未同步到本人时返回 null,
+     * 由服务端沿用该 sessionNonce 已登记的身份。
+     */
+    private fun currentSender(): WatchTogetherChatSender? {
+        val selfId = selfUserId.value ?: return null
+        val member = roomMemberIdentities.value.firstOrNull { it.userId == selfId } ?: return null
+        return WatchTogetherChatSender(
+            userId = member.userId,
+            nickname = member.nickname,
+            avatarUrl = member.avatarUrl,
+        )
     }
 
     /**

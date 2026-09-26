@@ -68,6 +68,7 @@ class DefaultWatchTogetherChatApi(
         roomId: String,
         sessionNonce: String,
         content: String,
+        sender: WatchTogetherChatSender?,
     ): WatchTogetherChatMessage? {
         val base = baseUrl(extensionUrl.first()) ?: return null
         val url = URLBuilder(base).apply {
@@ -77,7 +78,15 @@ class DefaultWatchTogetherChatApi(
             runCatching {
                 post(url) {
                     contentType(ContentType.Application.Json)
-                    setBody(WatchTogetherSendChatRequest(sessionNonce, content))
+                    setBody(
+                        WatchTogetherSendChatRequest(
+                            sessionNonce = sessionNonce,
+                            content = content,
+                            senderUserId = sender?.userId,
+                            senderNickname = sender?.nickname,
+                            senderAvatarUrl = sender?.avatarUrl,
+                        ),
+                    )
                 }.body<WatchTogetherChatMessage>()
             }.getOrNull()
         }

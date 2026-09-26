@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
 
 /**
  * 房间聊天消息。由自托管服务端提供,官方协议未定义该结构。
+ *
+ * [userId] / [nickname] / [avatarUrl] 来自官方一起看房间的成员信息(由发言客户端透传),
+ * 客户端据此把消息归属到官方成员, 使聊天室里的昵称与头像与官方房间一致。
  */
 @Serializable
 data class WatchTogetherChatMessage(
@@ -21,15 +24,28 @@ data class WatchTogetherChatMessage(
     @SerialName("roomId") val roomId: String,
     @SerialName("userId") val userId: String,
     @SerialName("nickname") val nickname: String,
+    @SerialName("avatarUrl") val avatarUrl: String? = null,
     @SerialName("content") val content: String,
     @SerialName("sentAt") val sentAt: Long,
     @SerialName("system") val system: Boolean = false,
+)
+
+/**
+ * 发言者的官方成员信息, 随发送请求透传给聊天扩展。
+ */
+data class WatchTogetherChatSender(
+    val userId: String,
+    val nickname: String,
+    val avatarUrl: String? = null,
 )
 
 @Serializable
 data class WatchTogetherSendChatRequest(
     @SerialName("sessionNonce") val sessionNonce: String,
     @SerialName("content") val content: String,
+    @SerialName("senderUserId") val senderUserId: String? = null,
+    @SerialName("senderNickname") val senderNickname: String? = null,
+    @SerialName("senderAvatarUrl") val senderAvatarUrl: String? = null,
 )
 
 @Serializable
@@ -49,6 +65,13 @@ interface WatchTogetherChatApi {
 
     /**
      * 发送一条消息。返回服务端落库后的消息,失败时返回 null。
+     *
+     * [sender] 是发言者在官方房间里的成员信息, 服务端据此让聊天室显示与官方房间一致。
      */
-    suspend fun send(roomId: String, sessionNonce: String, content: String): WatchTogetherChatMessage?
+    suspend fun send(
+        roomId: String,
+        sessionNonce: String,
+        content: String,
+        sender: WatchTogetherChatSender?,
+    ): WatchTogetherChatMessage?
 }

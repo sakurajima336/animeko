@@ -28,6 +28,7 @@ fun WatchTogetherTabContent(
     val uiState by viewModel.uiStateFlow.collectAsStateWithLifecycle()
     val messages by viewModel.chatMessages.collectAsStateWithLifecycle()
     val extensionUrl by viewModel.extensionUrl.collectAsStateWithLifecycle()
+    val selfUserId by viewModel.selfUserId.collectAsStateWithLifecycle()
 
     WatchTogetherTabPage(
         state = uiState,
@@ -41,6 +42,7 @@ fun WatchTogetherTabContent(
         },
         onSendMessage = { viewModel.sendChatMessage(it) },
         onExtensionUrlChange = { viewModel.setExtensionUrl(it) },
+        selfUserId = selfUserId,
         modifier = modifier,
     )
 }
