@@ -236,18 +236,16 @@ private fun KoinApplication.otherModules(
     }
     single<AniApiProvider> { AniApiProvider(get<HttpClientProvider>().get(useAniToken = true)) }
     single<WatchTogetherApiService> {
-        val settings = get<SettingsRepository>().watchTogetherSettings
         DefaultWatchTogetherApiService(
             provider = get(),
             eventsClient = get<HttpClientProvider>().get(useAniToken = true, useSse = true),
-            serverBaseUrl = settings.flow.map { it.serverBaseUrl },
         )
     }
     single<WatchTogetherChatApi> {
         val settings = get<SettingsRepository>().watchTogetherSettings
         DefaultWatchTogetherChatApi(
             client = get<HttpClientProvider>().get(useAniToken = true),
-            serverBaseUrl = settings.flow.map { it.serverBaseUrl },
+            extensionUrl = settings.flow.map { it.chatExtensionUrl },
         )
     }
     single<LocalPlaybackBridge> { LocalPlaybackBridge() }

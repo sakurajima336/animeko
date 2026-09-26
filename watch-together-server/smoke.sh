@@ -1,43 +1,50 @@
 #!/bin/bash
-# 端到端冒烟:两个用户加入同一房间 -> 各自开 SSE -> A 发言 -> 验证 B 收到
+# 聊天扩展冒烟测试: 用"官方下发的 roomId"收发消息, 并验证房间隔离。
+# 需要服务端已运行在 127.0.0.1:8099
 set -u
 BASE=http://127.0.0.1:8099
 
-echo "== 1. Alice 创建房间 =="
-A=$(curl -s -X POST "$BASE/v2/watch-together/join?userId=alice&nickname=Alice" \
-  -H 'Content-Type: application/json' \
-  -d '{"roomName":"smoke","password":"pw","following":true}')
-echo "$A"
-ROOM=$(echo "$A" | python3 -c 'import sys,json;print(json.load(sys.stdin)["roomId"])')
-NA=$(echo "$A" | python3 -c 'import sys,json;print(json.load(sys.stdin)["sessionNonce"])')
+# 模拟官方服务端下发的 roomId 与 sessionNonce
+ROOM_A="r_official_abc123"
+ROOM_B="r_official_xyz789"
+NONCE_A="official-nonce-alice"
+NONCE_B="official-nonce-bob"
 
-echo "== 2. Bob 加入同一房间 =="
-B=$(curl -s -X POST "$BASE/v2/watch-together/join?userId=bob&nickname=Bob" \
-  -H 'Content-Type: application/json' \
-  -d '{"roomName":"smoke","password":"pw","following":true}')
-echo "$B"
-NB=$(echo "$B" | python3 -c 'import sys,json;print(json.load(sys.stdin)["sessionNonce"])')
+echo "== 1. 健康检查(应标明 chat-extension) =="
+curl -s "$BASE/healthz"; echo
 
-echo "== 3. Bob 开启 SSE(后台 6 秒) =="
-(timeout 6 curl -sN "$BASE/v2/watch-together/rooms/$ROOM/events?sessionNonce=$NB" > /tmp/bob_sse.txt) &
+echo "== 2. 房间生命周期接口应不存在 =="
+printf 'join:   '; curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/v2/watch-together/join" -d '{}'
+printf 'report: '; curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/report" -d '{}'
+printf 'leave:  '; curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/leave" -d '{}'
+
+echo "== 3. Alice 在官方房间 A 发言 =="
+curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/chat?userId=u1&nickname=Alice" \
+  -H 'Content-Type: application/json' \
+  -d "{\"sessionNonce\":\"$NONCE_A\",\"content\":\"大家好,这是A房间\"}"; echo
+
+echo "== 4. Bob 在官方房间 B 发言 =="
+curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_B/chat?userId=u2&nickname=Bob" \
+  -H 'Content-Type: application/json' \
+  -d "{\"sessionNonce\":\"$NONCE_B\",\"content\":\"B房间消息\"}"; echo
+
+echo "== 5. 无 sessionNonce 应被拒绝 =="
+printf 'empty nonce: '; curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  "$BASE/v2/watch-together/rooms/$ROOM_A/chat" -H 'Content-Type: application/json' \
+  -d '{"sessionNonce":"","content":"let me in"}'
+
+echo "== 6. 房间 A 历史(不应含 B 的消息) =="
+curl -s "$BASE/v2/watch-together/rooms/$ROOM_A/chat"; echo
+
+echo "== 7. 房间 B 历史(不应含 A 的消息) =="
+curl -s "$BASE/v2/watch-together/rooms/$ROOM_B/chat"; echo
+
+echo "== 8. SSE 实时推送(后台 6 秒) =="
+(timeout 6 curl -sN "$BASE/v2/watch-together/rooms/$ROOM_A/events" > /tmp/chat_sse.txt) &
 sleep 1
-
-echo "== 4. Alice 发言 =="
-curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM/chat" \
+curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM_A/chat?userId=u1&nickname=Alice" \
   -H 'Content-Type: application/json' \
-  -d "{\"sessionNonce\":\"$NA\",\"content\":\"大家好,这是一起看测试\"}"
-echo
-
-echo "== 5. Alice 上报播放状态(房主) =="
-curl -s -X POST "$BASE/v2/watch-together/rooms/$ROOM/report" \
-  -H 'Content-Type: application/json' \
-  -d "{\"sessionNonce\":\"$NA\",\"memberState\":\"WATCHING\",\"following\":true,\"watching\":{\"subjectId\":1,\"episodeId\":11,\"subjectName\":\"测试番剧\",\"episodeSort\":\"1\",\"episodeName\":\"第一话\",\"positionMillis\":5000,\"positionAtMillis\":5000,\"durationMillis\":100000,\"paused\":false,\"buffering\":false,\"loading\":false,\"playbackRate\":1.0}}" \
-  | head -c 400
-echo
-
+  -d "{\"sessionNonce\":\"$NONCE_A\",\"content\":\"SSE 测试消息\"}" > /dev/null
 wait
-
-echo "== 6. Bob 收到的 SSE 内容 =="
-cat /tmp/bob_sse.txt
-echo "== 7. 房间聊天历史 =="
-curl -s "$BASE/v2/watch-together/rooms/$ROOM/chat"
+echo "--- SSE 收到 ---"
+cat /tmp/chat_sse.txt

@@ -38,14 +38,6 @@ import me.him188.ani.utils.ktor.ScopedHttpClient
 class AniApiProvider(
     @PublishedApi
     internal val client: ScopedHttpClient,
-    /**
-     * 「一起看」自托管服务端地址。为空时使用官方服务端(MAGIC_ANI_SERVER)。
-     *
-     * 由 [me.him188.ani.app.data.network.DefaultWatchTogetherApiService] 在每次调用前更新,
-     * 这样用户在设置里改地址后无需重建 provider 即可生效。
-     */
-    @PublishedApi
-    internal var watchTogetherBaseUrlOverride: String? = null,
 ) {
     val trendsApi = ApiInvoker(client) { TrendsAniApi(baseurl, it) }
     val scheduleApi = ApiInvoker(client) { ScheduleAniApi(baseurl, it) }
@@ -69,17 +61,7 @@ class AniApiProvider(
     val userAuthApi = ApiInvoker(client) { UserAuthenticationAniApi(baseurl, it) }
     val userProfileApi = ApiInvoker(client) { UserProfileAniApi(baseurl, it) }
     val subscriptionApi = ApiInvoker(client) { SubscriptionsAniApi(baseurl, it) }
-    // 注意: 一起看的 baseUrl 可能随用户在设置中修改而变化, 因此不能像其他 API 那样
-    // 在构造期固化为 val, 改为每次调用时按当前 override 取值。
-    val watchTogetherApi = ApiInvoker(client) {
-        WatchTogetherAniApi(watchTogetherUrl, it)
-    }
+    val watchTogetherApi = ApiInvoker(client) { WatchTogetherAniApi(baseurl, it) }
 
     private inline val baseurl get() = ServerListFeatureConfig.Companion.MAGIC_ANI_SERVER
-
-    /**
-     * 一起看使用的 baseUrl:优先自托管地址,否则回落到官方服务端。
-     */
-    private inline val watchTogetherUrl get() =
-        watchTogetherBaseUrlOverride?.takeIf { it.isNotBlank() } ?: baseurl
 }

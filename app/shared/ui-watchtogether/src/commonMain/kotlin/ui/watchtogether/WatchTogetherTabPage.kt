@@ -47,6 +47,10 @@ import androidx.compose.ui.unit.dp
 import me.him188.ani.app.data.network.WatchTogetherChatMessage
 import me.him188.ani.app.ui.lang.Lang
 import me.him188.ani.app.ui.lang.watch_together_cancel
+import me.him188.ani.app.ui.lang.watch_together_chat_extension
+import me.him188.ani.app.ui.lang.watch_together_chat_extension_disable
+import me.him188.ani.app.ui.lang.watch_together_chat_extension_hint
+import me.him188.ani.app.ui.lang.watch_together_chat_extension_placeholder
 import me.him188.ani.app.ui.lang.watch_together_chat_input_placeholder
 import me.him188.ani.app.ui.lang.watch_together_chat_send
 import me.him188.ani.app.ui.lang.watch_together_join
@@ -56,27 +60,24 @@ import me.him188.ani.app.ui.lang.watch_together_leave
 import me.him188.ani.app.ui.lang.watch_together_password
 import me.him188.ani.app.ui.lang.watch_together_room_name
 import me.him188.ani.app.ui.lang.watch_together_save
-import me.him188.ani.app.ui.lang.watch_together_server_address
-import me.him188.ani.app.ui.lang.watch_together_server_address_placeholder
 import me.him188.ani.app.ui.lang.watch_together_settings
-import me.him188.ani.app.ui.lang.watch_together_use_official_server
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * 「一起看」Tab 页面:
- * - 未加入房间时展示加入表单;
+ * - 未加入房间时展示加入表单(房间由官方服务端提供);
  * - 已加入房间时展示聊天室(消息列表 + 输入框);
- * - 右上角设置菜单可配置自托管服务端地址(域名或 ip:端口)。
+ * - 右上角设置可配置聊天**扩展**链接, 房间本身始终来自官方源。
  */
 @Composable
 fun WatchTogetherTabPage(
     state: WatchTogetherUiState,
     messages: List<WatchTogetherChatMessage>,
-    serverAddress: String,
+    extensionUrl: String,
     onJoinRoom: (roomName: String, password: String) -> Unit,
     onLeaveRoom: () -> Unit,
     onSendMessage: (String) -> Unit,
-    onServerAddressChange: (String) -> Unit,
+    onExtensionUrlChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
@@ -85,9 +86,9 @@ fun WatchTogetherTabPage(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.End,
         ) {
-            ServerAddressMenu(
-                serverAddress = serverAddress,
-                onServerAddressChange = onServerAddressChange,
+            ChatExtensionMenu(
+                extensionUrl = extensionUrl,
+                onExtensionUrlChange = onExtensionUrlChange,
             )
         }
 
@@ -115,12 +116,12 @@ fun WatchTogetherTabPage(
 }
 
 /**
- * 右上角设置菜单:展开后可设置一起看的服务端地址。
+ * 右上角设置:配置聊天扩展链接。房间本身由官方服务端提供, 此处不影响一起看房间。
  */
 @Composable
-private fun ServerAddressMenu(
-    serverAddress: String,
-    onServerAddressChange: (String) -> Unit,
+private fun ChatExtensionMenu(
+    extensionUrl: String,
+    onExtensionUrlChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -135,27 +136,27 @@ private fun ServerAddressMenu(
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text(stringResource(Lang.watch_together_server_address)) },
+                text = { Text(stringResource(Lang.watch_together_chat_extension)) },
                 onClick = {
                     expanded = false
                     editing = true
                 },
             )
             DropdownMenuItem(
-                text = { Text(stringResource(Lang.watch_together_use_official_server)) },
+                text = { Text(stringResource(Lang.watch_together_chat_extension_disable)) },
                 onClick = {
                     expanded = false
-                    onServerAddressChange("")
+                    onExtensionUrlChange("")
                 },
             )
         }
     }
 
     if (editing) {
-        ServerAddressDialog(
-            initialValue = serverAddress,
+        ChatExtensionDialog(
+            initialValue = extensionUrl,
             onConfirm = {
-                onServerAddressChange(it)
+                onExtensionUrlChange(it)
                 editing = false
             },
             onDismiss = { editing = false },
@@ -164,7 +165,7 @@ private fun ServerAddressMenu(
 }
 
 @Composable
-private fun ServerAddressDialog(
+private fun ChatExtensionDialog(
     initialValue: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -172,17 +173,24 @@ private fun ServerAddressDialog(
     var text by remember(initialValue) { mutableStateOf(initialValue) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Lang.watch_together_server_address)) },
+        title = { Text(stringResource(Lang.watch_together_chat_extension)) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = {
-                    Text(stringResource(Lang.watch_together_server_address_placeholder))
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = {
+                        Text(stringResource(Lang.watch_together_chat_extension_placeholder))
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    stringResource(Lang.watch_together_chat_extension_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text.trim()) }) {

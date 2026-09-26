@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,23 +10,19 @@ import (
 
 // handleEvents GET /v2/watch-together/rooms/{roomId}/events
 //
-// SSE 事件流。客户端 Ktor SSE 插件会解析:
-//   - 注释行 ":connected" / ":ping"  -> Connected / Ping
-//   - "event: snapshot" + data       -> 房间快照
-//   - "event: chat" + data           -> 聊天消息(本服务端扩展)
-//   - "event: bye" + data            -> 会话结束
+// 聊天室的 SSE 事件流。只推送本扩展的事件:
+//   - 注释行 ":connected" / ":ping" -> 连接与心跳
+//   - "event: chat"  + data         -> 新的聊天消息
+//
+// 房间快照(snapshot)不在此推送 —— 房间状态与播放同步由官方服务端负责。
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, roomID string) {
-	r0, ok := s.rooms.Get(roomID)
-	if !ok {
-		writeError(w, http.StatusForbidden, string(protocol.MembershipRoomClosed), "room not found")
-		return
-	}
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "NO_STREAMING", "streaming unsupported")
 		return
 	}
+
+	room := s.rooms.GetOrCreateChatRoom(roomID)
 
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-transform")
@@ -39,16 +34,8 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, roomID str
 	fmt.Fprint(w, ":connected\n\n")
 	flusher.Flush()
 
-	ch := r0.Subscribe()
-	defer r0.Unsubscribe(ch)
-
-	// 首帧立刻下发当前快照,让客户端无需等待第一次状态变化。
-	if snap := r0.Snapshot(); snap != nil {
-		if payload, err := json.Marshal(snap); err == nil {
-			fmt.Fprintf(w, "event: snapshot\ndata: %s\n\n", payload)
-			flusher.Flush()
-		}
-	}
+	ch := room.Subscribe()
+	defer room.Unsubscribe(ch)
 
 	pingTicker := time.NewTicker(15 * time.Second)
 	defer pingTicker.Stop()
@@ -74,3 +61,5 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, roomID str
 		}
 	}
 }
+
+var _ = protocol.ChatEvent{}

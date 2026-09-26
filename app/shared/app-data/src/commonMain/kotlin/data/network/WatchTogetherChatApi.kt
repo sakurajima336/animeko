@@ -20,29 +20,40 @@ import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
-import me.him188.ani.app.domain.foundation.ServerListFeatureConfig
 import me.him188.ani.utils.ktor.ScopedHttpClient
 import me.him188.ani.utils.ktor.UnsafeScopedHttpClientApi
 
 /**
- * 房间聊天的默认实现。与 [WatchTogetherApiService] 共用同一个服务端地址,
- * 因此聊天消息与房间状态始终落在同一台服务器上,保证房间隔离。
+ * 官方一起看房间的**聊天扩展**。
+ *
+ * 房间本身由官方服务端提供(join / report / leave / events), 扩展只是给该房间附加一个聊天室。
+ * 扩展按官方下发的 `roomId` 定位房间, 因此聊天室与官方房间**严格绑定**:
+ * 房间关闭或更换后, 旧 roomId 不再有消息。
+ *
+ * 未配置扩展链接时, 所有调用都返回空结果, 不影响官方一起看的正常使用。
  */
 class DefaultWatchTogetherChatApi(
     private val client: ScopedHttpClient,
-    private val serverBaseUrl: Flow<String>,
+    /** 聊天扩展服务链接。为空表示未启用扩展。 */
+    private val extensionUrl: Flow<String>,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) : WatchTogetherChatApi {
-    private fun baseUrl(raw: String): String {
+    /**
+     * 把用户填写的链接规范化为绝对 URL。
+     * 未写 scheme 时默认 http, 局域网自建服务通常没有证书。
+     */
+    private fun baseUrl(raw: String): String? {
         val trimmed = raw.trim().trimEnd('/')
-        if (trimmed.isEmpty()) return ServerListFeatureConfig.MAGIC_ANI_SERVER
+        if (trimmed.isEmpty()) return null
         val withScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"
         return if (withScheme.endsWith("/")) withScheme else "$withScheme/"
     }
 
     @OptIn(UnsafeScopedHttpClientApi::class)
     override suspend fun fetchHistory(roomId: String): List<WatchTogetherChatMessage> {
-        val url = URLBuilder(baseUrl(serverBaseUrl.first())).apply {
+        // roomId 来自官方服务端, 保证聊天室与官方房间一一对应。
+        val base = baseUrl(extensionUrl.first()) ?: return emptyList()
+        val url = URLBuilder(base).apply {
             appendPathSegments("v2", "watch-together", "rooms", roomId, "chat")
         }.buildString()
         return client.use {
@@ -58,7 +69,8 @@ class DefaultWatchTogetherChatApi(
         sessionNonce: String,
         content: String,
     ): WatchTogetherChatMessage? {
-        val url = URLBuilder(baseUrl(serverBaseUrl.first())).apply {
+        val base = baseUrl(extensionUrl.first()) ?: return null
+        val url = URLBuilder(base).apply {
             appendPathSegments("v2", "watch-together", "rooms", roomId, "chat")
         }.buildString()
         return client.use {

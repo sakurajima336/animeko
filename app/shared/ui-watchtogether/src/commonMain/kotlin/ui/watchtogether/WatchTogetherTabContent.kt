@@ -27,12 +27,12 @@ fun WatchTogetherTabContent(
 ) {
     val uiState by viewModel.uiStateFlow.collectAsStateWithLifecycle()
     val messages by viewModel.chatMessages.collectAsStateWithLifecycle()
-    val serverAddress by viewModel.serverAddress.collectAsStateWithLifecycle()
+    val extensionUrl by viewModel.extensionUrl.collectAsStateWithLifecycle()
 
     WatchTogetherTabPage(
         state = uiState,
         messages = messages,
-        serverAddress = serverAddress,
+        extensionUrl = extensionUrl,
         onJoinRoom = { roomName, password ->
             viewModel.onIntent(WatchTogetherIntent.JoinRoom(roomName, password))
         },
@@ -40,7 +40,7 @@ fun WatchTogetherTabContent(
             viewModel.onIntent(WatchTogetherIntent.LeaveRoom)
         },
         onSendMessage = { viewModel.sendChatMessage(it) },
-        onServerAddressChange = { viewModel.setServerAddress(it) },
+        onExtensionUrlChange = { viewModel.setExtensionUrl(it) },
         modifier = modifier,
     )
 }

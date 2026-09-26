@@ -116,10 +116,10 @@ open class WatchTogetherViewModel : AbstractViewModel(), KoinComponent {
         .stateInBackground(emptyList())
 
     /**
-     * 自托管服务端地址,空串表示使用官方服务端。
+     * 聊天扩展链接, 空串表示未启用扩展。
      */
-    val serverAddress: StateFlow<String> = settingsRepository.watchTogetherSettings.flow
-        .map { it.serverBaseUrl }
+    val extensionUrl: StateFlow<String> = settingsRepository.watchTogetherSettings.flow
+        .map { it.chatExtensionUrl }
         .stateInBackground("")
 
     fun onIntent(intent: WatchTogetherIntent) {
@@ -187,11 +187,11 @@ open class WatchTogetherViewModel : AbstractViewModel(), KoinComponent {
     }
 
     /**
-     * 设置自托管服务端地址。传空串表示使用官方服务端。
+     * 设置聊天扩展链接。传空串表示停用扩展(不影响官方一起看房间)。
      */
-    fun setServerAddress(address: String) {
+    fun setExtensionUrl(address: String) {
         launchInBackground {
-            settingsRepository.watchTogetherSettings.update { copy(serverBaseUrl = address.trim()) }
+            settingsRepository.watchTogetherSettings.update { copy(chatExtensionUrl = address.trim()) }
         }
     }
 

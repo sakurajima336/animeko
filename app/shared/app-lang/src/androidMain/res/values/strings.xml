@@ -1653,11 +1653,12 @@
     <string name="watch_together_resynced_forward">Re-synced with the host (skipped ahead %1$d s)</string>
     <string name="watch_together_resynced_backward">Re-synced with the host (went back %1$d s)</string>
     <string name="watch_together_got_it">Got it</string>
-    <!-- 一起看: 自托管服务端与聊天 -->
+    <!-- 一起看: 聊天扩展与聊天室 -->
     <string name="watch_together_settings">Settings</string>
-    <string name="watch_together_server_address">Server address</string>
-    <string name="watch_together_server_address_placeholder">Domain or IP:port, e.g. 192.168.1.10:8080</string>
-    <string name="watch_together_use_official_server">Use official server</string>
+    <string name="watch_together_chat_extension">Chat extension</string>
+    <string name="watch_together_chat_extension_placeholder">Extension link, e.g. 192.168.1.10:8080</string>
+    <string name="watch_together_chat_extension_hint">Provides a chat room for the official Watch Together room. Rooms and playback sync always come from the official server.</string>
+    <string name="watch_together_chat_extension_disable">Turn off chat extension</string>
     <string name="watch_together_chat_send">Send</string>
     <string name="watch_together_chat_input_placeholder">Say something…</string>
     <string name="watch_together_save">Save</string>

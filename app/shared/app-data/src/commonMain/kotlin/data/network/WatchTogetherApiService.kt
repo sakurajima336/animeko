@@ -16,9 +16,7 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -71,41 +69,13 @@ sealed interface WatchTogetherServerEvent {
 }
 
 class DefaultWatchTogetherApiService(
-    private val provider: AniApiProvider,
+    provider: AniApiProvider,
     private val eventsClient: ScopedHttpClient,
     private val json: Json = ApiClient.JSON_DEFAULT,
-    /**
-     * 自托管服务端地址(域名或 ip:端口)。为空时使用官方服务端。
-     *
-     * 这个 Flow 允许用户在设置里改地址后立即生效,无需重启。
-     */
-    private val serverBaseUrl: Flow<String> = flowOf(""),
 ) : WatchTogetherApiService {
     private val api: ApiInvoker<WatchTogetherAniApi> = provider.watchTogetherApi
 
-    /**
-     * 把用户填写的地址规范化为可用于 Ktor 的绝对 URL。
-     * 未写 scheme 时默认 http,局域网自建服务通常没有证书。
-     */
-    private fun resolveBaseUrl(raw: String): String? {
-        val trimmed = raw.trim().trimEnd('/')
-        if (trimmed.isEmpty()) return null
-        val withScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"
-        return if (withScheme.endsWith("/")) withScheme else "$withScheme/"
-    }
-
-    /**
-     * 同步当前的自托管地址到 [AniApiProvider],使 join/report/leave 走同一地址。
-     * 返回解析后的地址,为空表示使用官方服务端。
-     */
-    private suspend fun syncBaseUrl(): String? {
-        val resolved = resolveBaseUrl(serverBaseUrl.first())
-        provider.watchTogetherBaseUrlOverride = resolved
-        return resolved
-    }
-
     override suspend fun join(roomName: String, password: String, following: Boolean): AniWatchTogetherJoinResponse {
-        syncBaseUrl()
         try {
             return api {
                 joinWatchTogetherRoom(AniJoinWatchTogetherRoomRequest(roomName, password, following)).body()
@@ -127,15 +97,11 @@ class DefaultWatchTogetherApiService(
     override suspend fun report(
         roomId: String,
         request: AniReportWatchTogetherStateRequest,
-    ): AniWatchTogetherReportResponse {
-        syncBaseUrl()
-        return api {
-            reportWatchTogetherState(roomId, request).body()
-        }
+    ): AniWatchTogetherReportResponse = api {
+        reportWatchTogetherState(roomId, request).body()
     }
 
     override suspend fun leave(roomId: String, sessionNonce: String) {
-        syncBaseUrl()
         api {
             leaveWatchTogetherRoom(roomId, AniLeaveWatchTogetherRoomRequest(sessionNonce)).body()
         }
@@ -143,9 +109,8 @@ class DefaultWatchTogetherApiService(
 
     @OptIn(UnsafeScopedHttpClientApi::class)
     override fun events(roomId: String, sessionNonce: String): Flow<WatchTogetherServerEvent> = flow {
-        val base = resolveBaseUrl(serverBaseUrl.first())
-            ?: ServerListFeatureConfig.MAGIC_ANI_SERVER
-        val url = URLBuilder(base).apply {
+        // 房间状态与同步始终由官方服务端提供。
+        val url = URLBuilder(ServerListFeatureConfig.MAGIC_ANI_SERVER).apply {
             appendPathSegments("v2", "watch-together", "rooms", roomId, "events")
             parameters.append("sessionNonce", sessionNonce)
         }.buildString()
