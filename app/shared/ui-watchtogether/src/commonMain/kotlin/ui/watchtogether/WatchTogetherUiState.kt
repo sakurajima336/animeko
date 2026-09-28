@@ -42,6 +42,19 @@ enum class WatchTogetherPhase {
     IN_ROOM,
 }
 
+/**
+ * 官方一起看房间成员的身份信息(昵称、头像)。
+ *
+ * 聊天室的消息按 [userId] 匹配到这里, 因此聊天室显示的昵称与头像始终与官方成员列表一致,
+ * 不依赖聊天扩展服务端自己保存的副本。
+ */
+@Immutable
+internal data class WatchTogetherMemberIdentity(
+    val userId: String,
+    val nickname: String,
+    val avatarUrl: String?,
+)
+
 @Immutable
 data class WatchTogetherJoinFormState(
     val lastRoomName: String = "",

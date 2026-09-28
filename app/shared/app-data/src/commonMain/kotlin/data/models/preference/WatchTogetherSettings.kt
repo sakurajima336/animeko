@@ -20,6 +20,14 @@ data class WatchTogetherSettings(
     val followHost: Boolean = true,
     val lastRoomName: String = "",
     val rememberedSession: RememberedRoomSession? = null,
+    /**
+     * 聊天**扩展**服务链接。
+     *
+     * 一起看的房间、成员与播放同步始终由官方服务端提供, 本字段只用于接入聊天扩展服务。
+     * 支持域名或 ip:端口, 例如 `example.com`、`192.168.1.10:8080`、`https://example.com`。
+     * 为空表示未启用聊天扩展。
+     */
+    val chatExtensionUrl: String = "",
 ) {
     companion object {
         @Stable

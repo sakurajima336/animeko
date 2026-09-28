@@ -35,11 +35,13 @@ import me.him188.ani.app.data.network.BangumiBangumiCommentServiceImpl
 import me.him188.ani.app.data.network.BangumiCommentService
 import me.him188.ani.app.data.network.BangumiRelatedPeopleService
 import me.him188.ani.app.data.network.DefaultWatchTogetherApiService
+import me.him188.ani.app.data.network.DefaultWatchTogetherChatApi
+import me.him188.ani.app.data.network.WatchTogetherApiService
+import me.him188.ani.app.data.network.WatchTogetherChatApi
 import me.him188.ani.app.data.network.EpisodeService
 import me.him188.ani.app.data.network.EpisodeServiceImpl
 import me.him188.ani.app.data.network.RemoteSubjectService
 import me.him188.ani.app.data.network.SubjectService
-import me.him188.ani.app.data.network.WatchTogetherApiService
 import me.him188.ani.app.data.persistent.dataStores
 import me.him188.ani.app.data.persistent.database.AniDatabase
 import me.him188.ani.app.data.persistent.database.MIGRATION_19_20
@@ -239,6 +241,14 @@ private fun KoinApplication.otherModules(
         DefaultWatchTogetherApiService(
             provider = get(),
             eventsClient = get<HttpClientProvider>().get(useAniToken = true, useSse = true),
+        )
+    }
+    single<WatchTogetherChatApi> {
+        val settings = get<SettingsRepository>().watchTogetherSettings
+        DefaultWatchTogetherChatApi(
+            // 聊天消息走 SSE 实时推送, 必须开启 SSE 插件, 否则 client.sse() 会直接失败并降级到轮询。
+            client = get<HttpClientProvider>().get(useAniToken = true, useSse = true),
+            extensionUrl = settings.flow.map { it.chatExtensionUrl },
         )
     }
     single<LocalPlaybackBridge> { LocalPlaybackBridge() }

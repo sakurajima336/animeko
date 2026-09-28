@@ -4,6 +4,15 @@ This is the repository for the app. For the server, you can navigate to ../ani-a
 
 Read docs/contributing for project guidelines. Before modifying a subsystem, check docs/contributing/code/ for its documentation (e.g. the media framework docs cover terminology, class-level code maps, and the playback flow) and read the relevant docs first.
 
+## 分支职责
+
+本仓库有两个长期分支，改动范围严格区分，不要把其中一个分支的内容带到另一个分支：
+
+- **`main`** —— 与官方上游 `open-ani/animeko` 保持一致，只额外携带 fork 自己添加的功能（一起看聊天扩展、`watch-together-server/`）。**不得**包含任何 ARM64 专属的构建改动，这样任何人都能直接克隆构建。
+- **`linux-arm64`** —— 在 `main` 之上，额外携带两处 Linux ARM64 构建改动（`settings.gradle.kts`、`torrent/anitorrent/build.gradle.kts`），用于在 ARM64 机器上启用自建的 anitorrent 原生库。该库不走 Maven Central，而是从本机仓库解析（`~/.m2` 或 `ani.anitorrent.localNativesRepo` 指定的路径），因此这些改动依赖机器本地的自建产物，其他人拉取后若没有该库会在配置阶段直接失败，**不要**合回 `main`。
+
+同步上游时，先让 `main` 跟进上游，再把 `main` 合入 `linux-arm64`。分支差异、一次性准备与验证步骤见 `docs/linux-arm64.md`。
+
 Additional requirements:
 
 - You should add imports, instead of using fully qualified names in code.

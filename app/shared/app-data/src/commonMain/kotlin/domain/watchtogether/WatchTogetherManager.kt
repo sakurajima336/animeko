@@ -684,3 +684,22 @@ class WatchTogetherManager(
         val logger = logger<WatchTogetherManager>()
     }
 }
+
+/**
+ * 当前房间的凭据,供聊天等扩展功能使用。
+ */
+data class WatchTogetherRoomCredentials(
+    val roomId: String,
+    val sessionNonce: String,
+)
+
+/**
+ * 返回当前房间的 roomId 与 sessionNonce;未加入房间时返回 null。
+ *
+ * sessionNonce 在 [RoomSession] 上是 internal 的,统一由本类对外提供,
+ * 避免 UI 层直接依赖领域层的内部细节。
+ */
+fun WatchTogetherManager.currentRoomCredentials(): WatchTogetherRoomCredentials? {
+    val session = (state.value as? WatchTogetherState.InRoom)?.session ?: return null
+    return WatchTogetherRoomCredentials(session.roomId, session.sessionNonce)
+}

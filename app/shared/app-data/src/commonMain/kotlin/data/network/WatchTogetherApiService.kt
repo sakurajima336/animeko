@@ -74,6 +74,7 @@ class DefaultWatchTogetherApiService(
     private val json: Json = ApiClient.JSON_DEFAULT,
 ) : WatchTogetherApiService {
     private val api: ApiInvoker<WatchTogetherAniApi> = provider.watchTogetherApi
+
     override suspend fun join(roomName: String, password: String, following: Boolean): AniWatchTogetherJoinResponse {
         try {
             return api {
@@ -108,6 +109,7 @@ class DefaultWatchTogetherApiService(
 
     @OptIn(UnsafeScopedHttpClientApi::class)
     override fun events(roomId: String, sessionNonce: String): Flow<WatchTogetherServerEvent> = flow {
+        // 房间状态与同步始终由官方服务端提供。
         val url = URLBuilder(ServerListFeatureConfig.MAGIC_ANI_SERVER).apply {
             appendPathSegments("v2", "watch-together", "rooms", roomId, "events")
             parameters.append("sessionNonce", sessionNonce)
